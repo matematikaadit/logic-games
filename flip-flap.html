@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flip Flap</title>
+<link rel="stylesheet" type="text/css" href="static/normalize.css">
+<link rel="stylesheet" type="text/css" href="static/main.css">
+<style>
+.game {
+    text-align: center;
+}
+.mit {
+    position: fixed;
+    right: 5px;
+    bottom: 5px;
+}
+.hidden {
+    visibility: hidden;
+}
+.pointer {
+    cursor: pointer;
+}
+</style>
+</head>
+<body>
+<section class="game">
+<h1>Flip Flap<!--pers--></h1>
+<p>Click the box for flip flapping ;3</p>
+<p>Make all boxes white to win.</p>
+<canvas id="canvas" width="1000" height="200"></canvas>
+<div id="win">
+    <h1>You win!</h1>
+    <p><button id="reset">reset</button></p>
+</div>
+<div class="mit"><a href="LICENSE" alt="MIT License"><img src="https://img.shields.io/github/license/matematikaadit/logic-games.svg?style=flat-square"></a></div>
+</section>
+<script>
+// GLOBALS
+// -------
+var win = document.getElementById("win");
+var reset = document.getElementById("reset");
+var canvas = document.getElementById("canvas");
+var context = canvas.getContext("2d");
+var padding = 20;
+var paddingTop = 120;
+var numBoxes = 15;
+var regionWidth = canvas.width - 2 * padding;
+var boxLength = regionWidth / numBoxes;
+var squareLength = boxLength / 3;
+var squareDist = boxLength / 2 + squareLength / 2;
+var strokeColor = "rgb(128, 128, 0)";
+var boxColor = "rgb(255, 255, 51)";
+var region = new Region(padding,
+                        paddingTop,
+                        canvas.width - padding,
+                        paddingTop + boxLength);
+var hoverIndex = null;
+var boxes = new Array(numBoxes);
+var blackCount = 0;
+
+// INITS
+// -----
+function inits() {
+    clearListener();
+    clearCanvas();
+    resetClass();
+    resetGlobals();
+    drawBoxes(numBoxes);
+    populate();
+    regListener();
+}
+
+function resetGlobals() {
+    hoverIndex = null;
+    boxes = new Array(numBoxes);
+    blackCount = 0;
+}
+
+function clearCanvas() {
+    var width = canvas.width;
+    var height = canvas.height;
+    context.clearRect(0, 0, width, height);
+}
+
+function drawBoxes(num) {
+    var width = canvas.width;
+    context.strokeStyle = strokeColor;
+    context.lineWidth = 2;
+    // vertical
+    var x = padding;
+    var y = paddingTop;
+    for (var i = 0; i < num + 1; i++) {
+        line(x, y, x, y + boxLength);
+        x += boxLength;
+    }
+    var right = width - padding;
+    // top
+    line(padding, paddingTop, right, paddingTop);
+    // bottom
+    line(padding, paddingTop + boxLength, right, paddingTop + boxLength);
+}
+
+function populate() {
+    for (var i = 0; i < numBoxes; i++) {
+        var dx = padding + i * boxLength + boxLength / 3;
+        var dy = paddingTop - squareDist;
+        var x = padding + i * boxLength + 1;
+        var y = paddingTop + 1;
+        var box = new Box(i, {x: dx, y: dy}, {x: x, y: y});
+        box.fill();
+        box.color && blackCount++;
+        boxes[i] = box;
+    }
+}
+
+function resetClass() {
+    win.classList.add("hidden");
+}
+
+function line(x1, y1, x2, y2) {
+    context.beginPath();
+    context.moveTo(x1, y1);
+    context.lineTo(x2, y2);
+    context.stroke();
+}
+
+// Region & Box
+// ------------
+function Region(left, top, right, bottom, num) {
+    var that = this;
+
+    this.left = left;
+    this.top = top;
+    this.right = right;
+    this.bottom = bottom;
+    this.num = num;
+
+    this.isAbove = function(pos) {
+        return ((pos.x >= that.left) && (pos.x < that.right) &&
+                (pos.y >= that.top) && (pos.y < that.bottom));
+    }
+
+    this.index = function(pos) {
+        if (that.isAbove(pos)) {
+            return Math.floor((pos.x - that.left) / boxLength);
+        } else {
+            return null;
+        }
+    }
+}
+
+function Box(index, dotPos, pos) {
+    var that = this;
+
+    this.index = index;
+    this.pos = pos;
+    this.dotPos = dotPos;
+    this.dotExist = false;
+    this.color = Math.floor(Math.random() * 2);
+
+    this.invColor = function() {
+        return 1 - that.color;
+    }
+
+    this.neighbour = function(f) {
+        f.call(that);
+        var i = that.index;
+        if ((i - 1) >= 0) {
+            f.call(boxes[i - 1]);
+        }
+        if ((i + 1) < numBoxes) {
+            f.call(boxes[i + 1]);
+        }
+    }
+
+    this.hover = function() {
+        that.neighbour(that.square);
+    }
+
+    this.clearHover = function() {
+        that.neighbour(that.clearSquare);
+    }
+
+    this.square = function() {
+        if (!this.dotExist) {
+            var pos = this.dotPos;
+
+            context.fillStyle = boxColor;
+            context.lineWidth = 1;
+
+            if (this.invColor()) {
+                context.fillRect(pos.x, pos.y, squareLength, squareLength);
+            }
+            context.strokeRect(pos.x, pos.y, squareLength, squareLength);
+
+            this.dotExist = true;
+        }
+    }
+
+    this.clearSquare = function() {
+        if (this.dotExist) {
+            var pos = this.dotPos;
+            var x = pos.x - 2;
+            var y = pos.y - 2;
+            var length = squareLength + 4;
+
+            context.clearRect(x, y, length, length);
+
+            this.dotExist = false;
+        }
+    }
+
+    this.fill = function() {
+        var pos = this.pos;
+        var length = boxLength - 2;
+        if (this.color) {
+            context.fillStyle = boxColor;
+            context.fillRect(pos.x, pos.y, length, length);
+        } else {
+            context.clearRect(pos.x, pos.y, length, length);
+        }
+    }
+
+    this.flipflap = function() {
+        that.neighbour(that.flip);
+        that.neighbour(that.clearHover);
+        that.neighbour(that.hover);
+    }
+
+    this.flip = function() {
+        this.color = this.invColor();
+        if (this.color) {
+            blackCount++;
+        } else {
+            blackCount--;
+        }
+        this.fill();
+    }
+}
+
+
+// Event Listener
+// --------------
+
+function clearListener() {
+    document.removeEventListener("mousemove", moveListen, false);
+    document.removeEventListener("wheel", moveListen, false);
+
+    canvas.removeEventListener("click", clickListen, false);
+    reset.removeEventListener("click", resetListen, false);
+}
+
+function regListener() {
+    document.addEventListener("mousemove", moveListen, false);
+    document.addEventListener("wheel", moveListen, false);
+
+    canvas.addEventListener("click", clickListen, false);
+    reset.addEventListener("click", resetListen, false);
+}
+
+function moveListen(event) {
+    event.stopPropagation();
+
+    var pos = mousePos(event);
+    if (region.isAbove(pos)) {
+        canvas.classList.add("pointer");
+        var index = region.index(pos);
+        if (index !== null) {
+            (hoverIndex !== null) && boxes[hoverIndex].clearHover();
+            boxes[index].hover();
+            hoverIndex = index;
+        }
+    } else {
+        canvas.classList.remove("pointer");
+        (hoverIndex !== null) && boxes[hoverIndex].clearHover();
+        hoverIndex = null;
+    }
+}
+
+function clickListen(event) {
+    event.stopPropagation();
+
+    var pos = mousePos(event);
+    if (region.isAbove(pos)) {
+        var index = region.index(pos);
+        (index !== null) && boxes[index].flipflap();
+        if (blackCount === 0) win.classList.remove("hidden");
+    }
+}
+
+function resetListen(event) {
+    event.stopPropagation();
+    event.preventDefault();
+
+    inits();
+}
+
+function mousePos(event) {
+    var bound = canvas.getBoundingClientRect();
+    var x = (event.clientX - bound.left) * canvas.width  / bound.width;
+    var y = (event.clientY - bound.top)  * canvas.height / bound.height;
+    return { x: x, y: y };
+}
+
+// REAL
+// ----
+inits();
+
+</script>
+</body>
+</html>
